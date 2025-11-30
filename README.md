@@ -43,6 +43,8 @@ Warnings about using gym instead of gymnasium are expected and can be ignored fo
 ```bash
 ./scripts/run_docker_cpu.sh bash
 python -m rl_zoo3.enjoy
+
+python -m rl_zoo3.enjoy --env SeaquestNoFrameskip-v4 --algo dqn -f logs -n 10000 --exp-id 1
 ```
 
 This starts an interactive docker container session and runs the enjoy script with default parameters. You should see a window pop up with a rendering of the environment (CartPole-v1).
@@ -64,7 +66,7 @@ You can run training using the provided training scripts. This will make it easi
 ```bash
 ./scripts/run_docker_cpu.sh bash
 cd /seminar
-python utils/train_custom.py --env PongNoFrameskip-v4 --algo a2c --conf experiments/sample_experiment_a2c.yml --seed 1337
+python utils/train_custom.py --env SeaquestNoFrameskip-v4 --algo dqn --conf experiments/seaquest_dqn_v1.yml --seed 1337 -i ../rl-trained-agents/dqn/SeaquestNoFrameskip-v4_1/SeaquestNoFrameskip-v4.zip
 ```
 
 This will start training the agent with the specified environment, algorithm, config file, and seed. The trained model and logs will be saved in the `logs/` directory.
