@@ -19,7 +19,7 @@ def plot_train():
     parser = argparse.ArgumentParser("Gather results, plot training reward/success")
     parser.add_argument("-a", "--algo", help="Algorithm to include", type=str, required=True)
     parser.add_argument("-e", "--env", help="Environment(s) to include", nargs="+", type=str, required=True)
-    parser.add_argument("-f", "--exp-folder", help="Folders to include", type=str, required=True)
+    parser.add_argument("-f", "--exp-folder", help="Folders to include", nargs="+", type=str, required=True)
     parser.add_argument("--figsize", help="Figure size, width, height in inches.", nargs=2, type=int, default=[6.4, 4.8])
     parser.add_argument("--fontsize", help="Font size", type=int, default=14)
     parser.add_argument("-max", "--max-timesteps", help="Max number of timesteps to display", type=int)
@@ -33,7 +33,7 @@ def plot_train():
 
     algo = args.algo
     envs = args.env
-    log_path = os.path.join(args.exp_folder, algo)
+    exp_folders = args.exp_folder  # Now a list
 
     x_axis = {
         "steps": X_TIMESTEPS,
@@ -59,10 +59,16 @@ def plot_train():
 
     dirs = []
 
-    for env in envs:
-        # Sort by last modification
-        entries = sorted(os.scandir(log_path), key=lambda entry: entry.stat().st_mtime)
-        dirs.extend(entry.path for entry in entries if env in entry.name and entry.is_dir())
+    for exp_folder in exp_folders:
+        log_path = os.path.join(exp_folder, algo)
+        
+        if not os.path.isdir(log_path):
+            continue
+            
+        for env in envs:
+            # Sort by last modification
+            entries = sorted(os.scandir(log_path), key=lambda entry: entry.stat().st_mtime)
+            dirs.extend(entry.path for entry in entries if env in entry.name and entry.is_dir())
 
     plt.figure(y_label, figsize=args.figsize)
     plt.title(y_label, fontsize=args.fontsize)
@@ -90,9 +96,9 @@ def plot_train():
 
     plt.legend()
     plt.tight_layout()
+    plt.savefig(args.file_name)
     if not args.no_display:
         plt.show()
-    plt.savefig(args.file_name)
 
 
 if __name__ == "__main__":

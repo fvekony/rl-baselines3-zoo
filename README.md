@@ -68,8 +68,12 @@ You can run training using the provided training scripts. This will make it easi
 
 ```bash
 ./scripts/run_docker_cpu.sh bash
+pip install -e .
+pip install protobuf==6.31.1
+export PYTHONPATH=/home/mambauser/code/rl_zoo3:$PYTHONPATH
 cd /seminar
-python utils/train_custom.py --env SeaquestNoFrameskip-v4 --algo dqn --conf experiments/seaquest_dqn_v1.yml --seed 1337 -i ../rl-trained-agents/dqn/SeaquestNoFrameskip-v4_1/SeaquestNoFrameskip-v4.zip -P
+python utils/train_custom.py --env SeaquestNoFrameskip-v4 -f logs/dqn/test --algo dqn --conf experiments/seaquest_dqn_v1.yml --seed 1337 -i /home/mambauser/code/rl_zoo3/rl-trained-agents/dqn/SeaquestNoFrameskip-v4_1/SeaquestNoFrameskip-v4.zip -P --track --wandb-project-name dqn-seaquest
+
 ```
 
 This will start training the agent with the specified environment, algorithm, config file, and seed. The trained model and logs will be saved in the `logs/` directory.
@@ -81,7 +85,7 @@ After training, you can plot the training progress using the provided plotting s
 ```bash
 ./scripts/run_docker_cpu.sh bash
 cd /seminar
-python -m rl_zoo3.plots.plot_train --algo a2c --env PongNoFrameskip-v4 --exp-folder logs/ --file_name a2c_sample_plot_train.png
+python -m rl_zoo3.plots.plot_train --algo dqn --env SeaquestNoFrameskip-v4 --exp-folder logs/baseline_pretrained_3M logs/test --file_name dqn_plot_train.png
 ```
 
 This will generate a plot of the training progress and save them in the current directory with the given name. It will include multiple results runs if they exist.
@@ -92,7 +96,7 @@ When training with the script, the agents are intermittently evaluated using an 
 
 ```bash
 ./scripts/run_docker_cpu.sh bash
-python -m rl_zoo3.plots.all_plots --algo a2c --env PongNoFrameskip-v4 --exp-folder logs/ --file_name a2c_sample_all_plots.png
+python -m rl_zoo3.plots.all_plots --algo dqn --env SeaquestNoFrameskip-v4 --exp-folder logs/baseline_pretrained_3M logs/test --file_name dqn_all_plots.png
 ```
 
 This will generate a plot including confidence intervals for the evaluation results and save it in the current directory with the given name. It will include multiple results runs if they exist.

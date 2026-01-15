@@ -12,12 +12,15 @@ rl-trained_agents/
 .pytype/
 htmlcov/
 git_rewrite_commit_history.sh
+.github/
 .vscode/
 wandb
 runs
 hub
+*.png
 *.mp4
 *.json
+.wandb_api_key
 _build/
 run_crossq_bipedal.sh
 

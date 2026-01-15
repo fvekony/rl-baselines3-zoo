@@ -242,9 +242,9 @@ def all_plots():  # noqa: C901
         with open(f"{args.output}.pkl", "wb") as file_handler:
             pickle.dump(post_processed_results, file_handler)
 
+    plt.savefig(args.file_name)
     if not args.no_display:
         plt.show()
-    plt.savefig(args.file_name)
 
 
 if __name__ == "__main__":
