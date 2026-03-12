@@ -9,7 +9,7 @@ class MyTestWrapper(gym.Wrapper):
         super().__init__(env)
         self.episode_rewards = []
         self.episode_length = 0
-        self.total_steps = 0  # Track global timesteps
+        self.total_steps = 0  #track global timesteps
         
     def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
         self.episode_rewards = []
@@ -23,7 +23,7 @@ class MyTestWrapper(gym.Wrapper):
     def step(self, action):
         action = self._modify_action(action)
         
-        # Step the environment
+        #step the environment
         obs, reward, terminated, truncated, info = self.env.step(action)
         
         obs = self._modify_observation(obs)
@@ -31,7 +31,7 @@ class MyTestWrapper(gym.Wrapper):
         original_reward = reward
         reward = self._modify_reward(reward, obs, action)
         
-        # Track episode stats
+        #track episode stats
         self.episode_rewards.append(reward)
         self.episode_length += 1
         self.total_steps += 1

@@ -5,31 +5,44 @@ import wandb
 from collections import Counter
 
 
-class ExpWrapper(gym.Wrapper):
+class ReducedActionsWrapper(gym.Wrapper):
     
-    def __init__(self, env: gym.Env, log_interval: int = 50, enable_wandb: bool = False):
+    def __init__(self, env: gym.Env, allowed_actions: list[int], log_interval: int = 50, enable_wandb: bool = False):
         super().__init__(env)
         self.log_interval = log_interval
-            
         self.wandb_enabled = enable_wandb
-        
         self.total_steps = 0
         self.total_episodes = 0
+
+
+        #action space reduction
+        if not isinstance(env.action_space, gym.spaces.Discrete):
+            raise ValueError("ExpWrapper only works with Discrete action spaces")
         
-        #get action space size
-        if isinstance(env.action_space, gym.spaces.Discrete):
-            self.n_actions = env.action_space.n
-        else:
-            self.n_actions = None
-            
-        self.action_meanings = self._get_action_meanings()
-        if self.action_meanings:
-            print("\n=== Action Space ===")
-            for i, meaning in enumerate(self.action_meanings):
-                print(f"Action {i}: {meaning}")
-            print("===================\n")
-            
-        #map action indices to movement directions
+        self.allowed_actions = allowed_actions
+        self.original_n_actions = env.action_space.n
+        
+        #create new reduced action space
+        self.action_space = gym.spaces.Discrete(len(allowed_actions))
+        self.n_actions = len(allowed_actions)
+        
+        #get original action meanings
+        self.original_action_meanings = self._get_action_meanings()
+        
+        #create mapping for reduced actions
+        self.action_meanings = []
+        if self.original_action_meanings:
+            self.action_meanings = [self.original_action_meanings[i] for i in allowed_actions]
+            print("\n=== Reduced Action Space ===")
+            print(f"Original actions: {self.original_n_actions}")
+            print(f"Reduced actions: {len(allowed_actions)}")
+            print("\nAction mapping:")
+            for new_idx, orig_idx in enumerate(allowed_actions):
+                meaning = self.original_action_meanings[orig_idx]
+                print(f"  {new_idx} -> {orig_idx} ({meaning})")
+            print("============================\n")
+        
+        #map action indices to movement directions (using original indices)
         self.movement_actions = {
             1: 'FIRE',
             2: 'UP', 
@@ -130,12 +143,17 @@ class ExpWrapper(gym.Wrapper):
         return self._modify_observation(obs), info
         
     def step(self, action):
-        action = self._modify_action(action)
+        #map reduced action to original action
+        original_action = self.allowed_actions[action]
         
+        #track reduced action (not original)
         if self.n_actions:
             self.life_action_counts[action] += 1
+        
+        #apply any additional modifications
+        original_action = self._modify_action(original_action)
             
-        #track consecutive actions to detect stuck behavior
+        #track consecutive actions to detect stuck behavior (use reduced action)
         if action == self.last_action:
             self.consecutive_action_count += 1
             self.max_consecutive_actions = max(
@@ -150,7 +168,7 @@ class ExpWrapper(gym.Wrapper):
         prev_player_x = self.previous_ram[70] if self.previous_ram is not None else 0
         prev_player_y = self.previous_ram[97] if self.previous_ram is not None else 0
         
-        obs, reward, terminated, truncated, info = self.env.step(action)
+        obs, reward, terminated, truncated, info = self.env.step(original_action)
         
         obs = self._modify_observation(obs)
         
@@ -166,8 +184,8 @@ class ExpWrapper(gym.Wrapper):
         death_timer = ram[105]
         lives = ram[59]
         
-        #detect useless action
-        is_useless = self._detect_useless_action(action, prev_player_x, prev_player_y, player_x, player_y)
+        #detect useless action (use original action for detection)
+        is_useless = self._detect_useless_action(original_action, prev_player_x, prev_player_y, player_x, player_y)
         if is_useless:
             self.life_useless_actions += 1
         
@@ -260,11 +278,12 @@ class ExpWrapper(gym.Wrapper):
         # calc action distribution metrics
         action_metrics = {}
         if self.n_actions and self.life_length > 0:
-            #individual action counts
+            #individual action counts (log both reduced and original indices)
             for i, count in enumerate(self.life_action_counts):
+                orig_idx = self.allowed_actions[i]
                 action_name = self.action_meanings[i] if self.action_meanings else f"action_{i}"
-                action_metrics[f"actions/{i}_{action_name}_count"] = count
-                action_metrics[f"actions/{i}_{action_name}_pct"] = count / self.life_length
+                action_metrics[f"actions/{i}_orig{orig_idx}_{action_name}_count"] = count
+                action_metrics[f"actions/{i}_orig{orig_idx}_{action_name}_pct"] = count / self.life_length
                 
             #action entropy (measure of exploration)
             action_probs = np.array(self.life_action_counts) / self.life_length

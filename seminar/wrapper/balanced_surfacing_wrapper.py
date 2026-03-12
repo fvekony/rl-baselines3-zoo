@@ -5,7 +5,7 @@ import wandb
 from collections import Counter
 
 
-class ExpWrapper(gym.Wrapper):
+class BalancedSurfacingWrapper(gym.Wrapper):
     
     def __init__(self, env: gym.Env, log_interval: int = 50, enable_wandb: bool = False):
         super().__init__(env)
@@ -81,6 +81,7 @@ class ExpWrapper(gym.Wrapper):
         self.life_useless_actions = 0
         self.previous_divers_onboard = 0
         self.previous_enemy_flags = [0, 0, 0, 0]
+        self.previous_diver_lanes = [0, 0, 0, 0]
         self.previous_score = 0
         
     def reset_round_stats(self):
@@ -114,6 +115,7 @@ class ExpWrapper(gym.Wrapper):
         self.previous_ram = self.env.unwrapped.ale.getRAM().copy()
         self.previous_divers_onboard = self.previous_ram[62]
         self.previous_enemy_flags = [self.previous_ram[i] for i in range(40, 44)]
+        self.previous_diver_lanes = [self.previous_ram[i] for i in range(113, 117)]
         self.previous_score = int(f"{self.previous_ram[56]:02x}{self.previous_ram[57]:02x}{self.previous_ram[58]:02x}")
         
         #track starting lives from RAM (more reliable than info dict)
@@ -184,9 +186,22 @@ class ExpWrapper(gym.Wrapper):
             
         self.current_lives = lives
         
-        #track divers picked up
+        #track divers picked up and missed
+        divers_picked_up_now = 0
+        divers_missed_now = 0
+        
         if self.previous_ram is not None and divers_onboard > self.previous_divers_onboard:
-            self.life_divers_picked_up += (divers_onboard - self.previous_divers_onboard)
+            divers_picked_up_now = divers_onboard - self.previous_divers_onboard
+            self.life_divers_picked_up += divers_picked_up_now
+        
+        #detect missed divers (lane went from 1 to 0 without pickup)
+        if self.previous_ram is not None:
+            current_diver_lanes = [ram[i] for i in range(113, 117)]
+            for i in range(4):
+                if self.previous_diver_lanes[i] == 1 and current_diver_lanes[i] == 0:
+                    divers_missed_now += 1
+            self.previous_diver_lanes = current_diver_lanes
+        
         self.previous_divers_onboard = divers_onboard
         
         #track enemies outlived/killed
@@ -203,7 +218,7 @@ class ExpWrapper(gym.Wrapper):
         self.previous_score = score
         
         original_reward = reward
-        reward = self._modify_reward(reward, obs, action, info)
+        reward = self._modify_reward(reward, obs, action, info, divers_picked_up_now, divers_missed_now, life_lost)
         
         # track life stats
         self.life_rewards.append(reward)
@@ -391,7 +406,38 @@ class ExpWrapper(gym.Wrapper):
         
         return action
     
-    def _modify_reward(self, reward, obs, action, info):
+    def _modify_reward(self, reward, obs, action, info, divers_picked_up=0, divers_missed=0, life_lost=0):
+        #get current RAM state for additional checks
+        ram = self.env.unwrapped.ale.getRAM()
+        divers_onboard = ram[62]
+        player_y = ram[97]
+        
+        #get previous player_y
+        prev_player_y = self.previous_ram[97] if self.previous_ram is not None else 0
+        
+        #add +20 for each diver picked up (lane goes 1->255, divers_onboard increases)
+        reward += divers_picked_up * 50
+        
+        #add -10 for each diver missed (lane goes 1->0)
+        reward -= divers_missed * 10
+        
+        #penalty for surfacing with less than 6 divers (but not at life start, repeated surface frames, or death respawn)
+        if player_y == 13 and self.life_length >= 40 and prev_player_y != 13 and life_lost == 0:  #just arrived at surface
+            missing_divers = int(6 - divers_onboard)
+            if missing_divers > 0:
+                reward += missing_divers * (-2)
+        
+        #rewards/penalties based on actions when having 6 divers
+        if divers_onboard == 6 and player_y != 13:
+            #upward actions: UP(2), UPFIRE(10), UPRIGHT(6), UPRIGHTFIRE(14), UPLEFT(7), UPLEFTFIRE(15)
+            upward_actions = [2, 10, 6, 14, 7, 15]
+            #downward actions: DOWN(5), DOWNFIRE(13), DOWNRIGHT(8), DOWNRIGHTFIRE(16), DOWNLEFT(9), DOWNLEFTFIRE(17)
+            downward_actions = [5, 13, 8, 16, 9, 17]
+            
+            if action in upward_actions:
+                reward += 1.5  #encourage going up with 6 divers
+            elif action in downward_actions:
+                reward -= 1.5  #discourage going down with 6 divers
         
         return reward
     

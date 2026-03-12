@@ -5,7 +5,7 @@ import wandb
 from collections import Counter
 
 
-class ExpWrapper(gym.Wrapper):
+class DiversWrapper(gym.Wrapper):
     
     def __init__(self, env: gym.Env, log_interval: int = 50, enable_wandb: bool = False):
         super().__init__(env)
@@ -81,6 +81,7 @@ class ExpWrapper(gym.Wrapper):
         self.life_useless_actions = 0
         self.previous_divers_onboard = 0
         self.previous_enemy_flags = [0, 0, 0, 0]
+        self.previous_diver_lanes = [0, 0, 0, 0]
         self.previous_score = 0
         
     def reset_round_stats(self):
@@ -114,6 +115,7 @@ class ExpWrapper(gym.Wrapper):
         self.previous_ram = self.env.unwrapped.ale.getRAM().copy()
         self.previous_divers_onboard = self.previous_ram[62]
         self.previous_enemy_flags = [self.previous_ram[i] for i in range(40, 44)]
+        self.previous_diver_lanes = [self.previous_ram[i] for i in range(113, 117)]
         self.previous_score = int(f"{self.previous_ram[56]:02x}{self.previous_ram[57]:02x}{self.previous_ram[58]:02x}")
         
         #track starting lives from RAM (more reliable than info dict)
@@ -184,9 +186,22 @@ class ExpWrapper(gym.Wrapper):
             
         self.current_lives = lives
         
-        #track divers picked up
+        #track divers picked up and missed
+        divers_picked_up_now = 0
+        divers_missed_now = 0
+        
         if self.previous_ram is not None and divers_onboard > self.previous_divers_onboard:
-            self.life_divers_picked_up += (divers_onboard - self.previous_divers_onboard)
+            divers_picked_up_now = divers_onboard - self.previous_divers_onboard
+            self.life_divers_picked_up += divers_picked_up_now
+        
+        #detect missed divers (lane went from 1 to 0 without pickup)
+        if self.previous_ram is not None:
+            current_diver_lanes = [ram[i] for i in range(113, 117)]
+            for i in range(4):
+                if self.previous_diver_lanes[i] == 1 and current_diver_lanes[i] == 0:
+                    divers_missed_now += 1
+            self.previous_diver_lanes = current_diver_lanes
+        
         self.previous_divers_onboard = divers_onboard
         
         #track enemies outlived/killed
@@ -203,7 +218,7 @@ class ExpWrapper(gym.Wrapper):
         self.previous_score = score
         
         original_reward = reward
-        reward = self._modify_reward(reward, obs, action, info)
+        reward = self._modify_reward(reward, obs, action, info, divers_picked_up_now, divers_missed_now)
         
         # track life stats
         self.life_rewards.append(reward)
@@ -391,7 +406,12 @@ class ExpWrapper(gym.Wrapper):
         
         return action
     
-    def _modify_reward(self, reward, obs, action, info):
+    def _modify_reward(self, reward, obs, action, info, divers_picked_up=0, divers_missed=0):
+        #add +20 for each diver picked up (lane goes 1->255, divers_onboard increases)
+        reward += divers_picked_up * 20
+        
+        #add -10 for each diver missed (lane goes 1->0)
+        reward -= divers_missed * 10
         
         return reward
     

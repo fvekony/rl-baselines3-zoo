@@ -46,6 +46,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--custom-objects", action="store_true", default=False, help="Use custom objects to solve loading issues"
     )
+    parser.add_argument(
+        "--video-width", type=int, default=960, help="Video width in pixels (default: 960 for HD 4:3)"
+    )
+    parser.add_argument(
+        "--video-height", type=int, default=720, help="Video height in pixels (default: 720 for HD 4:3)"
+    )
 
     args = parser.parse_args()
 
@@ -71,6 +77,13 @@ if __name__ == "__main__":
     off_policy_algos = ["qrdqn", "dqn", "ddpg", "sac", "her", "td3", "tqc"]
 
     set_random_seed(args.seed)
+    
+    #disable wandb for video recording to avoid initialization errors from wrappers
+    try:
+        import wandb
+        wandb.init(mode="disabled")
+    except ImportError:
+        pass
 
     is_atari = ExperimentManager.is_atari(env_name.gym_id)
     is_minigrid = ExperimentManager.is_minigrid(env_name.gym_id)
@@ -137,13 +150,55 @@ if __name__ == "__main__":
     if video_folder is None:
         video_folder = os.path.join(log_path, "videos")
 
+    #extract experiment name and seed for video filename
+    experiment_name = os.path.basename(os.path.dirname(os.path.dirname(log_path)))
+    
+    #try to read seed from command.txt
+    command_txt_path = os.path.join(log_path, env_name, "command.txt")
+    experiment_seed = "unknown"
+    if os.path.isfile(command_txt_path):
+        try:
+            with open(command_txt_path) as f:
+                command = f.read()
+                #extract seed from command line (after --seed or -s)
+                import re
+                seed_match = re.search(r'(?:--seed|-s)\s+(\d+)', command)
+                if seed_match:
+                    experiment_seed = seed_match.group(1)
+        except:
+            pass
+    
+    #create custom video name: <experiment_name>_<seed>_step-0-to-step-<n>
+    custom_name_prefix = f"{experiment_name}_{experiment_seed}"
+
+    #monkey-patch render to upscale frames if HD requested
+    if args.video_width > 0 and args.video_height > 0:
+        original_render = env.render
+        
+        def hd_render(mode='rgb_array'):
+            frame = original_render(mode)
+            if frame is not None and len(frame.shape) == 3:
+                try:
+                    import cv2
+                    frame = cv2.resize(frame, (args.video_width, args.video_height), interpolation=cv2.INTER_NEAREST)
+                except ImportError:
+                    h, w = frame.shape[:2]
+                    scale_h = args.video_height // h
+                    scale_w = args.video_width // w
+                    if scale_h > 0 and scale_w > 0:
+                        frame = np.repeat(np.repeat(frame, scale_h, axis=0), scale_w, axis=1)
+                    frame = frame[:args.video_height, :args.video_width]
+            return frame
+        
+        env.render = hd_render
+
     # Note: apparently it renders by default
     env = VecVideoRecorder(
         env,
         video_folder,
         record_video_trigger=lambda x: x == 0,
         video_length=video_length,
-        name_prefix=name_prefix,
+        name_prefix=custom_name_prefix,
     )
 
     obs = env.reset()

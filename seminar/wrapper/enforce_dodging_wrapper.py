@@ -5,7 +5,7 @@ import wandb
 from collections import Counter
 
 
-class ExpWrapper(gym.Wrapper):
+class DodgingWrapper(gym.Wrapper):
     
     def __init__(self, env: gym.Env, log_interval: int = 50, enable_wandb: bool = False):
         super().__init__(env)
@@ -119,6 +119,7 @@ class ExpWrapper(gym.Wrapper):
         #track starting lives from RAM (more reliable than info dict)
         self.starting_lives = self.previous_ram[59]
         self.current_lives = self.starting_lives
+        self.lives_at_episode_start = self.starting_lives
         
         #detect round end: lives went from low (0-1) back to starting_lives (new game)
         if prev_lives is not None and prev_lives == 0 and self.starting_lives == 3:
@@ -149,6 +150,7 @@ class ExpWrapper(gym.Wrapper):
         #store player position before action
         prev_player_x = self.previous_ram[70] if self.previous_ram is not None else 0
         prev_player_y = self.previous_ram[97] if self.previous_ram is not None else 0
+        prev_death_timer = self.previous_ram[105] if self.previous_ram is not None else 0
         
         obs, reward, terminated, truncated, info = self.env.step(action)
         
@@ -165,6 +167,13 @@ class ExpWrapper(gym.Wrapper):
         oxygen = ram[102]
         death_timer = ram[105]
         lives = ram[59]
+        
+        #detect death animation start (death_timer went from 0 to non-zero)
+        death_started = prev_death_timer == 0 and death_timer != 0
+        
+        #suppress reward if agent is dying (death_timer is active)
+        if death_timer != 0:
+            reward = 0
         
         #detect useless action
         is_useless = self._detect_useless_action(action, prev_player_x, prev_player_y, player_x, player_y)

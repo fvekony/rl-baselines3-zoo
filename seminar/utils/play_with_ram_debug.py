@@ -11,7 +11,6 @@ except:
     pass
 
 def get_ale(env):
-    """Find ALE interface in wrapped environment."""
     #try direct access first
     if hasattr(env, 'ale'):
         return env.ale
@@ -30,7 +29,6 @@ def get_ale(env):
     return None
 
 def print_object_table(ram, prev_ram):
-    """Print object positions in table format."""
     print("\n" + "="*120)
     print("FULL RAM (0-120)")
     print("="*120)
@@ -107,7 +105,6 @@ def print_object_table(ram, prev_ram):
         print()
 
 def print_game_state(ram, prev_ram, action_name=""):
-    """Print known game state values."""
     print("\n" + "="*70)
     print(f"Action: {action_name}")
     print("="*70)
@@ -140,7 +137,6 @@ def print_game_state(ram, prev_ram, action_name=""):
     print(f"  Anim?     [89-94]: {ram[89]:3d}, {ram[90]:3d}, {ram[91]:3d}, {ram[92]:3d}, {ram[93]:3d}, {ram[94]:3d}")
 
 def print_ram_overlay(ram, prev_ram, action_name=""):
-    """Print RAM values that changed."""
     print("\n" + "="*70)
     print(f"Action: {action_name}")
     print("="*70)
@@ -236,7 +232,7 @@ while running:
     
     #execute action for multiple frames to see visible movement
     total_reward = 0
-    for _ in range(15):  # Hold action for 15 frames
+    for _ in range(5):  # Hold action for 15 frames
         obs, reward, terminated, truncated, info = env.step(action)
         total_reward += reward
         env.render()

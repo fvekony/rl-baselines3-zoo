@@ -53,6 +53,11 @@ try:
 except ImportError:
     pass
 
+try:
+    import seminar.wrapper.custom_replay_buffer
+except ImportError:
+    pass
+
 
 # Register no vel envs
 def create_no_vel_env(env_id: str) -> Callable[[Optional[str]], gym.Env]:

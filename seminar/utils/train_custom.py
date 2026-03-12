@@ -1,7 +1,7 @@
 import os
 import sys
 
-# Add the project root (/seminar) to Python path
+#add the project root to python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from rl_zoo3.train import train

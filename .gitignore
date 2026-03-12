@@ -19,6 +19,8 @@ runs
 hub
 *.png
 *.mp4
+*.parquet
+artifacts/
 *.json
 .wandb_api_key
 _build/

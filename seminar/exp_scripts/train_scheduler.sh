@@ -26,8 +26,8 @@ cd /seminar
 # Training parameters
 ENV="SeaquestNoFrameskip-v4"
 ALGO="dqn"
-CONFIG="experiments/seaquest_dqn_v1.yml"
-LOG_FOLDER="logs/baseline_pretrained_3M"
+CONFIG="experiments/seaquest_dqn_balanced_surfacing_wbuffer.yml"
+LOG_FOLDER="logs/balanced_surfacing_wbuffer"
 N_JOBS=6
 PRETRAINED_AGENT="/home/mambauser/code/rl_zoo3/rl-trained-agents/dqn/SeaquestNoFrameskip-v4_1/SeaquestNoFrameskip-v4.zip"
 PROGRESS_BAR="-P"  # Use -P for progress bar, or "" to disable
@@ -55,8 +55,7 @@ start_training() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting experiment with seed $seed in tmux session: $session_name"
     
     # Create tmux session and run training command
-    tmux new-session -d -s "$session_name" "export PYTHONPATH=/home/mambauser/code/rl_zoo3:\$PYTHONPATH && cd /seminar && python utils/train_custom.py --env $ENV -f $LOG_FOLDER --algo $ALGO --conf $CONFIG --seed $seed $PROGRESS_BAR --n-jobs $N_JOBS -i $PRETRAINED_AGENT $WANDB_ARGS; echo 'Training finished. Press Ctrl+C to exit or session will close in 10s'; sleep 10"
-    
+    tmux new-session -d -s "$session_name" "export PYTHONPATH=/home/mambauser/code/rl_zoo3:\$PYTHONPATH && cd /seminar && python utils/train_custom.py --env $ENV -f $LOG_FOLDER --algo $ALGO --conf $CONFIG --seed $seed $PROGRESS_BAR -i $PRETRAINED_AGENT --n-jobs $N_JOBS $WANDB_ARGS; echo 'Training finished. Press Ctrl+C to exit or session will close in 10s'; sleep 10"
     running_sessions+=("$session_name")
 }
 

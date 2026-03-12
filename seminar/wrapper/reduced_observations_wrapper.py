@@ -5,7 +5,7 @@ import wandb
 from collections import Counter
 
 
-class ExpWrapper(gym.Wrapper):
+class ReduceObservationsWrapper(gym.Wrapper):
     
     def __init__(self, env: gym.Env, log_interval: int = 50, enable_wandb: bool = False):
         super().__init__(env)
@@ -43,6 +43,57 @@ class ExpWrapper(gym.Wrapper):
         }
         
         self.previous_ram = None
+        
+        #hardcoded observation modification settings
+        self.crop_top = 10
+        self.crop_bottom = 22
+        self.crop_left = 6
+        self.crop_right = 0
+        self.blackout_regions = []  #list of (top, bottom, left, right) tuples to blackout
+        
+        #update observation space to match modified observations
+        #note: this assumes 2D observations (frame stacking happens after this wrapper)
+        original_obs_space = env.observation_space
+        if hasattr(original_obs_space, 'shape'):
+            shape = original_obs_space.shape
+            if len(shape) == 2:
+                #single frame: (height, width)
+                height, width = shape
+                new_height = height - self.crop_top - self.crop_bottom
+                new_width = width - self.crop_left - self.crop_right
+                self.observation_space = gym.spaces.Box(
+                    low=0, high=255,
+                    shape=(new_height, new_width),
+                    dtype=original_obs_space.dtype
+                )
+            elif len(shape) == 3 and shape[2] == 1:
+                #single frame with channel: (height, width, 1)
+                height, width, channels = shape
+                new_height = height - self.crop_top - self.crop_bottom
+                new_width = width - self.crop_left - self.crop_right
+                self.observation_space = gym.spaces.Box(
+                    low=0, high=255,
+                    shape=(new_height, new_width, channels),
+                    dtype=original_obs_space.dtype
+                )
+            elif len(shape) == 3:
+                #frame stacking already applied: (stack_size, height, width)
+                stack_size, height, width = shape
+                new_height = height - self.crop_top - self.crop_bottom
+                new_width = width - self.crop_left - self.crop_right
+                self.observation_space = gym.spaces.Box(
+                    low=0, high=255,
+                    shape=(stack_size, new_height, new_width),
+                    dtype=original_obs_space.dtype
+                )
+            
+            print(f"\n=== Observation Modification ===")
+            print(f"Original shape: {original_obs_space.shape}")
+            print(f"Modified shape: {self.observation_space.shape}")
+            print(f"Crop: top={self.crop_top}, bottom={self.crop_bottom}, left={self.crop_left}, right={self.crop_right}")
+            if self.blackout_regions:
+                print(f"Blackout regions: {self.blackout_regions}")
+            print("================================\n")
         
         # init life stats
         self.reset_life_stats()
@@ -384,6 +435,84 @@ class ExpWrapper(gym.Wrapper):
             return tuple(1 if f != 0 else 0 for f in flags)
         
     def _modify_observation(self, obs):
+        if obs is None:
+            return obs
+        
+        #debug: print observation shape on first call
+        if not hasattr(self, '_debug_printed'):
+            print(f"[DEBUG] Input observation shape: {obs.shape}, dtype: {obs.dtype}")
+            self._debug_printed = True
+        
+        #handle both 2D (single frame) and 3D (frame stacking) observations
+        if len(obs.shape) == 2:
+            #single frame (height, width) - before frame stacking
+            modified = obs.copy()
+            
+            #apply blackout regions first (before cropping)
+            for top, bottom, left, right in self.blackout_regions:
+                modified[top:bottom, left:right] = 0
+            
+            #crop frame
+            if self.crop_bottom > 0:
+                modified = modified[self.crop_top:-self.crop_bottom, :]
+            else:
+                modified = modified[self.crop_top:, :]
+            
+            if self.crop_right > 0:
+                modified = modified[:, self.crop_left:-self.crop_right]
+            else:
+                modified = modified[:, self.crop_left:]
+            
+            if not hasattr(self, '_debug_printed_result'):
+                print(f"[DEBUG] Output observation shape: {modified.shape}")
+                print(f"[DEBUG] Expected shape after crop: ({84 - self.crop_top - self.crop_bottom}, {84 - self.crop_left - self.crop_right})")
+                self._debug_printed_result = True
+            
+            return modified
+            
+        elif len(obs.shape) == 3:
+            #format: (height, width, channels/frames) - could be single or stacked
+            #apply modifications to each frame in the last dimension
+            modified = obs.copy()
+            n_frames = obs.shape[2]
+            
+            for frame_idx in range(n_frames):
+                frame = modified[:, :, frame_idx]
+                
+                #copy oxygen bar from bottom to top right BEFORE cropping
+                oxygen_n_divers = frame[-16:-9, 25:58].copy()
+                #paste at row that will be top after cropping
+                frame[self.crop_top:self.crop_top+7, -33:] = oxygen_n_divers
+
+                #apply blackout regions
+                for top, bottom, left, right in self.blackout_regions:
+                    frame[top:bottom, left:right] = 0
+                
+                #crop frame (height dimension is first, width is second)
+                if self.crop_bottom > 0:
+                    frame = frame[self.crop_top:-self.crop_bottom, :]
+                else:
+                    frame = frame[self.crop_top:, :]
+                
+                if self.crop_right > 0:
+                    frame = frame[:, self.crop_left:-self.crop_right]
+                else:
+                    frame = frame[:, self.crop_left:]
+                
+                #store modified frame
+                if frame_idx == 0:
+                    #initialize result array with first frame
+                    result = np.zeros((frame.shape[0], frame.shape[1], n_frames), dtype=obs.dtype)
+                result[:, :, frame_idx] = frame
+            
+            modified = result
+            
+            if not hasattr(self, '_debug_printed_result'):
+                print(f"[DEBUG] Output observation shape: {modified.shape}")
+                print(f"[DEBUG] Expected shape after crop: ({84 - self.crop_top - self.crop_bottom}, {84 - self.crop_left - self.crop_right})")
+                self._debug_printed_result = True
+            
+            return modified
         
         return obs
     

@@ -27,6 +27,13 @@ from sb3_contrib.common.vec_env import AsyncEval
 # For using HER with GoalEnv
 from stable_baselines3 import HerReplayBuffer
 from stable_baselines3.common.base_class import BaseAlgorithm
+
+# Import custom replay buffers
+try:
+    from seminar.wrapper.custom_replay_buffer import BadExperienceReplayBuffer
+except ImportError:
+    BadExperienceReplayBuffer = None  # type: ignore[assignment,misc]
+
 from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback, EvalCallback, ProgressBarCallback
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.noise import NormalActionNoise, OrnsteinUhlenbeckActionNoise

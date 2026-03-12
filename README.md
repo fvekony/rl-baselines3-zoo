@@ -45,8 +45,15 @@ Runs the existing pytests. Tests should pass.
 Warnings about using gym instead of gymnasium are expected and can be ignored for now.
 
 ```bash
-./scripts/run_docker_cpu.sh python -m rl_zoo3.enjoy
+./scripts/run_docker_cpu.sh bash
 
+pip install -e . &&
+pip install protobuf==6.31.1 &&
+export PYTHONPATH=/home/mambauser/code/rl_zoo3:$PYTHONPATH
+
+python -m rl_zoo3.enjoy
+
+python -m rl_zoo3.enjoy --env SeaquestNoFrameskip-v4 --algo dqn -f seminar/logs/baseline_pretrained_1M_full-logs -n 10000 --exp-id 1
 python -m rl_zoo3.enjoy --env SeaquestNoFrameskip-v4 --algo dqn -f logs -n 10000 --exp-id 1
 ```
 
@@ -72,7 +79,7 @@ pip install -e .
 pip install protobuf==6.31.1
 export PYTHONPATH=/home/mambauser/code/rl_zoo3:$PYTHONPATH
 cd /seminar
-python utils/train_custom.py --env SeaquestNoFrameskip-v4 -f logs/dqn/test --algo dqn --conf experiments/seaquest_dqn_v1.yml --seed 1337 -i /home/mambauser/code/rl_zoo3/rl-trained-agents/dqn/SeaquestNoFrameskip-v4_1/SeaquestNoFrameskip-v4.zip -P --track --wandb-project-name dqn-seaquest
+python utils/train_custom.py --env SeaquestNoFrameskip-v4 -f logs/dqn/test --algo dqn --conf experiments/seaquest_dqn_reduced_observations.yml --seed 1337 -i /home/mambauser/code/rl_zoo3/rl-trained-agents/dqn/SeaquestNoFrameskip-v4_1/SeaquestNoFrameskip-v4.zip -P --track --wandb-project-name dqn-seaquest
 
 ```
 
